@@ -1,0 +1,18 @@
+channelName: "testCompletChannel"
+topic: "complete-test"
+
+source:
+  type: "file-in"
+  directory: "./test_input"
+  extensions: [".txt"]
+  filterScript: "scripts/filter.js"
+  transformScript: "scripts/transform.js"
+
+destinations:
+  - type: "file-out"
+    directory: "./test_output"
+    keepOriginalName: true
+  - type: "socket-out" 
+    host: "127.0.0.1"
+    port: 9001
+    keepConnectionAlive: false

@@ -1,0 +1,20 @@
+channelName: "fileToSocketChannel"
+topic: "files-to-sockets"
+
+source:
+  type: "file-in"
+  directory: "./input"
+  extensions: [".txt", ".csv", ".json"]
+  deleteAfterProcessing: false
+  filterScript: "scripts/filter.js"
+  transformScript: "scripts/transform.js"
+
+destinations:
+  - type: "socket-out"
+    host: "127.0.0.1"
+    port: 9000
+    protocol: "TCP"
+    keepConnectionAlive: false
+  - type: "file-out"
+    directory: "./output"
+    keepOriginalName: true

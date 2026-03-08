@@ -1,0 +1,15 @@
+channelName: "socketToFileChannel"
+topic: "socket-data"
+
+source:
+  type: "socket-in"
+  host: "localhost"
+  port: 8080
+  protocol: "TCP"
+  filterScript: "scripts/socket-filter.js"
+  transformScript: "scripts/socket-transform.js"
+
+destinations:
+  - type: "file-out"
+    directory: "./output/socket-data"
+    keepOriginalName: false
