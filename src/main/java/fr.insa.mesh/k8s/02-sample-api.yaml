@@ -1,0 +1,96 @@
+---
+# ServiceAccount dédié pour la politique Zero-Trust Linkerd
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sample-api
+  namespace: labotrack
+
+---
+# Deployment sample-api
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sample-api
+  namespace: labotrack
+  labels:
+    app: sample-api
+    version: "1.0"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sample-api
+  template:
+    metadata:
+      labels:
+        app: sample-api
+        version: "1.0"
+      annotations:
+        linkerd.io/inject: enabled
+    spec:
+      serviceAccountName: sample-api
+      containers:
+        - name: sample-api
+          image: labotrack/sample-api:1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+            - containerPort: 9090
+              name: grpc
+          env:
+            - name: DB_URL
+              value: jdbc:postgresql://postgres:5432/labotrack
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_PASSWORD
+            - name: DB_DRIVER
+              value: org.postgresql.Driver
+            - name: H2_CONSOLE
+              value: "false"
+          readinessProbe:
+            httpGet:
+              path: /samples
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /samples
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+
+---
+# Service sample-api (ClusterIP)
+apiVersion: v1
+kind: Service
+metadata:
+  name: sample-api
+  namespace: labotrack
+  labels:
+    app: sample-api
+spec:
+  selector:
+    app: sample-api
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+    - name: grpc
+      port: 9090
+      targetPort: 9090

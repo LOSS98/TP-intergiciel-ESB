@@ -7,6 +7,16 @@
 
 set -e
 
+# Chemin absolu du dossier du script (capturé avant tout cd)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# docker-compose.yml est dans le même dossier que ce script
+COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
+
+# Se placer à la racine du projet (6 niveaux au-dessus de src/main/java/fr/insa/esb/)
+# Fonctionne quelle que soit l'endroit depuis lequel le script est invoqué.
+cd "$SCRIPT_DIR/../../../../../../"
+
 # Couleurs pour l'affichage
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -54,9 +64,9 @@ cleanup() {
     fi
     
     # Arrêt de RabbitMQ via Docker Compose
-    if docker compose ps | grep -q rabbitmq; then
+    if docker compose -f "$COMPOSE_FILE" ps | grep -q rabbitmq; then
         log_info "Arrêt de RabbitMQ via Docker Compose"
-        docker compose down >/dev/null 2>&1 || true
+        docker compose -f "$COMPOSE_FILE" down >/dev/null 2>&1 || true
     fi
     
     # Nettoyage des dossiers de test
@@ -143,14 +153,14 @@ start_rabbitmq() {
     print_header "DÉMARRAGE DE RABBITMQ VIA DOCKER COMPOSE"
     
     # Arrêt des services existants s'ils existent
-    docker compose down >/dev/null 2>&1 || true
+    docker compose -f "$COMPOSE_FILE" down >/dev/null 2>&1 || true
     
     log_info "Démarrage de RabbitMQ avec Docker Compose..."
-    docker compose up -d rabbitmq
+    docker compose -f "$COMPOSE_FILE" up -d rabbitmq
     
     log_info "Attente du démarrage de RabbitMQ..."
     for i in {1..30}; do
-        if docker compose exec rabbitmq rabbitmqctl status >/dev/null 2>&1; then
+        if docker compose -f "$COMPOSE_FILE" exec rabbitmq rabbitmqctl status >/dev/null 2>&1; then
             log_success "RabbitMQ démarré et prêt via Docker Compose"
             return 0
         fi
@@ -159,7 +169,7 @@ start_rabbitmq() {
     
     log_error "Échec du démarrage de RabbitMQ"
     log_info "Vérification des logs Docker Compose:"
-    docker compose logs rabbitmq | tail -10
+    docker compose -f "$COMPOSE_FILE" logs rabbitmq | tail -10
     exit 1
 }
 

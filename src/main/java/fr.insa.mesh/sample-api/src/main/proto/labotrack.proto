@@ -1,0 +1,31 @@
+syntax = "proto3";
+package labotrack;
+option java_package = "fr.insa.mesh.grpc";
+option java_multiple_files = true;
+
+service SampleService {
+  rpc GetSample (GetSampleRequest) returns (SampleResponse);
+  rpc UpdateStatus (UpdateStatusRequest) returns (UpdateStatusResponse);
+}
+
+message GetSampleRequest {
+  string sample_id = 1;
+}
+
+message SampleResponse {
+  string id = 1;
+  string patient_name = 2;
+  string exam_type = 3;
+  string sample_type = 4;
+  string status = 5;
+}
+
+message UpdateStatusRequest {
+  string sample_id = 1;
+  string status = 2;
+}
+
+message UpdateStatusResponse {
+  bool success = 1;
+  string new_status = 2;
+}

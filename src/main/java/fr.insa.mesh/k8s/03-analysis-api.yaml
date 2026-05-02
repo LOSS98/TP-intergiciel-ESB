@@ -1,0 +1,85 @@
+---
+# ServiceAccount dédié
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: analysis-api
+  namespace: labotrack
+
+---
+# Deployment analysis-api
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: analysis-api
+  namespace: labotrack
+  labels:
+    app: analysis-api
+    version: "1.0"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: analysis-api
+  template:
+    metadata:
+      labels:
+        app: analysis-api
+        version: "1.0"
+      annotations:
+        linkerd.io/inject: enabled
+    spec:
+      serviceAccountName: analysis-api
+      containers:
+        - name: analysis-api
+          image: labotrack/analysis-api:1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8081
+          env:
+            # gRPC inter-service vers sample-api (mTLS automatique via Linkerd)
+            - name: SAMPLE_API_GRPC_HOST
+              value: sample-api
+            - name: SAMPLE_API_GRPC_PORT
+              value: "9090"
+            # Latence artificielle pour démontrer les retries Linkerd
+            - name: ANALYSIS_DELAY_MS
+              value: "300"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8081
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8081
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            failureThreshold: 3
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+
+---
+# Service analysis-api (ClusterIP)
+apiVersion: v1
+kind: Service
+metadata:
+  name: analysis-api
+  namespace: labotrack
+  labels:
+    app: analysis-api
+spec:
+  selector:
+    app: analysis-api
+  ports:
+    - name: http
+      port: 8081
+      targetPort: 8081

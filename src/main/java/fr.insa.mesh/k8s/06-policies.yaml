@@ -1,0 +1,67 @@
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# Politiques Zero-Trust via Linkerd Server + ServerAuthorization
+# Objectif : seul result-frontend peut appeler analysis-api (mTLS obligatoire)
+#            analysis-api peut appeler sample-api
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Server : expose le port HTTP de analysis-api sous le contrôle de Linkerd
+apiVersion: policy.linkerd.io/v1beta1
+kind: Server
+metadata:
+  name: analysis-api-server
+  namespace: labotrack
+spec:
+  podSelector:
+    matchLabels:
+      app: analysis-api
+  port: 8081
+  proxyProtocol: HTTP/1
+
+---
+# ServerAuthorization : autorise result-frontend → analysis-api (mTLS)
+apiVersion: policy.linkerd.io/v1beta1
+kind: ServerAuthorization
+metadata:
+  name: allow-frontend-to-analysis
+  namespace: labotrack
+spec:
+  server:
+    name: analysis-api-server
+  client:
+    meshTLS:
+      serviceAccounts:
+        - name: result-frontend
+          namespace: labotrack
+
+---
+# Server : expose le port HTTP de sample-api
+apiVersion: policy.linkerd.io/v1beta1
+kind: Server
+metadata:
+  name: sample-api-server
+  namespace: labotrack
+spec:
+  podSelector:
+    matchLabels:
+      app: sample-api
+  port: 8080
+  proxyProtocol: HTTP/1
+
+---
+# ServerAuthorization : autorise analysis-api + result-frontend → sample-api
+apiVersion: policy.linkerd.io/v1beta1
+kind: ServerAuthorization
+metadata:
+  name: allow-mesh-to-sample
+  namespace: labotrack
+spec:
+  server:
+    name: sample-api-server
+  client:
+    meshTLS:
+      serviceAccounts:
+        - name: analysis-api
+          namespace: labotrack
+        - name: result-frontend
+          namespace: labotrack

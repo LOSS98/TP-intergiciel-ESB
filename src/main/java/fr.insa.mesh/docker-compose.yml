@@ -1,0 +1,102 @@
+version: '3.8'
+
+# ─────────────────────────────────────────────────────────────────────────────
+# LaboTrack – Stack complète (développement local)
+# Commande : docker compose up --build
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── Base de données PostgreSQL ─────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: labotrack-postgres
+    environment:
+      POSTGRES_DB: labotrack
+      POSTGRES_USER: labotrack
+      POSTGRES_PASSWORD: labotrack123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U labotrack -d labotrack"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Service 1 : sample-api ─────────────────────────────────────────────────
+  sample-api:
+    build:
+      context: ./sample-api
+      dockerfile: Dockerfile
+    image: labotrack/sample-api:1.0
+    container_name: sample-api
+    ports:
+      - "8080:8080"
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/labotrack
+      DB_USERNAME: labotrack
+      DB_PASSWORD: labotrack123
+      DB_DRIVER: org.postgresql.Driver
+      H2_CONSOLE: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/samples"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ── Service 2 : analysis-api ───────────────────────────────────────────────
+  analysis-api:
+    build:
+      context: ./analysis-api
+      dockerfile: Dockerfile
+    image: labotrack/analysis-api:1.0
+    container_name: analysis-api
+    ports:
+      - "8081:8081"
+    environment:
+      SAMPLE_API_URL: http://sample-api:8080
+      ANALYSIS_DELAY_MS: "300"
+    depends_on:
+      sample-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8081/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # ── Service 3 : result-frontend ────────────────────────────────────────────
+  result-frontend:
+    build:
+      context: ./result-frontend
+      dockerfile: Dockerfile
+    image: labotrack/result-frontend:1.0
+    container_name: result-frontend
+    ports:
+      - "8082:8082"
+    environment:
+      SAMPLE_API_URL: http://sample-api:8080
+      ANALYSIS_API_URL: http://analysis-api:8081
+    depends_on:
+      - sample-api
+      - analysis-api
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8082/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 35s
+
+volumes:
+  postgres-data:
+
+networks:
+  default:
+    name: labotrack-net

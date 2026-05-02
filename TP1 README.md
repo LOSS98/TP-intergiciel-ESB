@@ -70,10 +70,10 @@ mvn package
 # Exécution du script de test complet
 # J'ai généré ce script via une IA 
 # afin de vous faciliter le test de ma solution
-./test-esb.sh
+./src/main/java/fr/insa/esb/test-esb.sh
 
 # Nettoyage après tests
-./test-esb.sh clean
+./src/main/java/fr/insa/esb/test-esb.sh clean
 ```
 
 ### Option 2: Test manuel étape par étape
@@ -81,10 +81,10 @@ mvn package
 #### Étape 1: Démarrage de RabbitMQ
 ```bash
 # Démarrage avec Docker Compose
-docker compose up -d
+docker compose -f src/main/java/fr/insa/esb/docker-compose.yml up -d
 
 # Vérification
-docker compose ps
+docker compose -f src/main/java/fr/insa/esb/docker-compose.yml ps
 ```
 Une fois RabbitMQ démarré, l'interface de management est accessible à :
 - URL : http://localhost:15672
@@ -162,7 +162,7 @@ Le dashboard s'affiche automatiquement dans la console toutes les 30s.
 #### Étape 5: Nettoyage
 ```bash
 # Arrêt des services
-docker compose down
+docker compose -f src/main/java/fr/insa/esb/docker-compose.yml down
 
 # Nettoyage fichiers de test
 rm -rf test_input test_output test_socket_output received_data.txt

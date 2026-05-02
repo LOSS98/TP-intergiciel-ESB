@@ -1,0 +1,29 @@
+# Dockerfile Multi-Stage Build
+# Avantage : aucune installation locale de Maven/JDK requise.
+# La compilation ET l'empaquetage sont réalisés dans la première image (builder).
+# L'image finale ne contient que le JRE + le fat-jar => image légère et sécurisée.
+
+# ─── Étape 1 : Build (Maven + JDK 21) ───────────────────────────────────────
+FROM maven:3.9-eclipse-temurin-21-alpine AS build
+
+WORKDIR /app
+
+# Copie du pom.xml seul pour exploiter le cache Docker sur les dépendances
+COPY pom.xml .
+RUN mvn dependency:go-offline -q
+
+# Copie des sources puis compilation
+COPY src ./src
+RUN mvn clean package -DskipTests -q
+
+# ─── Étape 2 : Runtime (JRE 21 seul) ────────────────────────────────────────
+FROM eclipse-temurin:21-jre-alpine
+
+WORKDIR /app
+
+# Récupération du fat-jar depuis l'étape de build
+COPY --from=build /app/target/demo-service-1.0.jar app.jar
+
+EXPOSE 8080
+
+ENTRYPOINT ["java", "-jar", "app.jar"]

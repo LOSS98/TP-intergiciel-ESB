@@ -1,0 +1,82 @@
+---
+# ServiceProfile pour sample-api
+# Définit les routes connues pour le monitoring et les politiques Linkerd
+apiVersion: linkerd.io/v1alpha2
+kind: ServiceProfile
+metadata:
+  name: sample-api.labotrack.svc.cluster.local
+  namespace: labotrack
+spec:
+  routes:
+    - name: POST /samples
+      condition:
+        method: POST
+        pathRegex: /samples
+      responseClasses:
+        - condition:
+            status:
+              min: 201
+              max: 201
+          isFailure: false
+
+    - name: GET /samples/{id}
+      condition:
+        method: GET
+        pathRegex: /samples/.*
+      responseClasses:
+        - condition:
+            status:
+              min: 200
+              max: 200
+          isFailure: false
+        - condition:
+            status:
+              min: 404
+              max: 404
+          isFailure: false
+
+    - name: GET /samples
+      condition:
+        method: GET
+        pathRegex: /samples
+
+    - name: PATCH /samples/{id}/status
+      condition:
+        method: PATCH
+        pathRegex: /samples/.*/status
+
+---
+# ServiceProfile pour analysis-api
+# Active les retries sur POST /analyze/{id} (latence de 300 ms simulée)
+apiVersion: linkerd.io/v1alpha2
+kind: ServiceProfile
+metadata:
+  name: analysis-api.labotrack.svc.cluster.local
+  namespace: labotrack
+spec:
+  routes:
+    - name: POST /analyze/{id}
+      condition:
+        method: POST
+        pathRegex: /analyze/.*
+      # Idempotent => les retries sont sûrs
+      isRetryable: true
+      timeout: 2000ms
+      responseClasses:
+        - condition:
+            status:
+              min: 200
+              max: 200
+          isFailure: false
+        - condition:
+            status:
+              min: 500
+              max: 599
+          isFailure: true
+
+    - name: GET /results/{id}
+      condition:
+        method: GET
+        pathRegex: /results/.*
+      isRetryable: true
+      timeout: 500ms
