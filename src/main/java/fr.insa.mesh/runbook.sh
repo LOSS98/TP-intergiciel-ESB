@@ -208,7 +208,9 @@ deploy_monitoring() {
     kubectl rollout status deployment/grafana -n "$NAMESPACE" --timeout=120s
 
     log "Stack de monitoring déployée."
-    log "Grafana : http://$(minikube ip):30300  (admin / admin123)"
+    info "Sur macOS Docker driver, accéder à Grafana via port-forward :"
+    info "  kubectl port-forward svc/grafana -n $NAMESPACE 3000:3000 &"
+    info "  Ouvrir : http://localhost:3000  (admin / admin123)"
 }
 
 # =============================================================================
@@ -223,8 +225,9 @@ open_dashboards() {
     info "Dashboard Linkerd Viz (nouvel onglet) :"
     linkerd viz dashboard &
 
-    info "URL du result-frontend :"
-    minikube service result-frontend -n "$NAMESPACE" --url
+    info "URL du result-frontend (port-forward) :"
+    kubectl port-forward svc/result-frontend -n "$NAMESPACE" 8082:8082 &>/dev/null &
+    info "  http://localhost:8082"
 
     log "Dashboards ouverts."
 }
@@ -277,10 +280,19 @@ cleanup() {
 smoke_test() {
     step "Tests fonctionnels (smoke tests)"
 
-    FRONTEND_URL=$(minikube service result-frontend -n "$NAMESPACE" --url 2>/dev/null)
-    SAMPLE_URL="http://$(minikube ip):$(kubectl get svc sample-api -n $NAMESPACE -o jsonpath='{.spec.ports[0].nodePort}' 2>/dev/null || echo 8080)"
+    # Sur macOS Docker driver les services ClusterIP ne sont pas accessibles via minikube ip
+    # → on utilise kubectl port-forward
+    info "Démarrage des tunnels port-forward..."
+    kubectl port-forward svc/sample-api   -n "$NAMESPACE" 8080:8080 &>/dev/null &
+    PF_SAMPLE=$!
+    kubectl port-forward svc/analysis-api -n "$NAMESPACE" 8081:8081 &>/dev/null &
+    PF_ANALYSIS=$!
+    sleep 3
 
-    info "Test 1 – Création d'un échantillon..."
+    SAMPLE_URL="http://localhost:8080"
+    ANALYSIS_URL="http://localhost:8081"
+
+    info "Test 1 – Enregistrement d'un échantillon (REGISTERED)..."
     SAMPLE=$(curl -s -X POST "${SAMPLE_URL}/samples" \
         -H "Content-Type: application/json" \
         -d '{"patientName":"Jean Test","examType":"Glycémie","sampleType":"Sang"}')
@@ -290,14 +302,21 @@ smoke_test() {
     [ -n "$ID" ] && log "Échantillon créé : ID=$ID" || warn "Impossible de récupérer l'ID"
 
     if [ -n "$ID" ]; then
-        info "Test 2 – Récupération de l'échantillon $ID..."
+        info "Test 2 – Consultation de l'échantillon $ID..."
         curl -s "${SAMPLE_URL}/samples/${ID}" | python3 -m json.tool 2>/dev/null || true
 
-        info "Test 3 – Interface web..."
-        HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${FRONTEND_URL}/")
-        [ "$HTTP_CODE" = "200" ] && log "Interface web accessible (HTTP $HTTP_CODE)" \
-                                  || warn "Interface web : HTTP $HTTP_CODE"
+        info "Test 3 – Analyse via gRPC (PRE_ANALYSIS → IN_ANALYSIS → VALIDATED → COMPLETED)..."
+        curl -s -X POST "${ANALYSIS_URL}/analyze/${ID}" | python3 -m json.tool 2>/dev/null || true
+
+        info "Test 4 – Restitution du résultat..."
+        curl -s "${ANALYSIS_URL}/results/${ID}" | python3 -m json.tool 2>/dev/null || true
+
+        FINAL_STATUS=$(curl -s "${SAMPLE_URL}/samples/${ID}" | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
+        [ "$FINAL_STATUS" = "COMPLETED" ] && log "Workflow complet : statut final = $FINAL_STATUS" \
+                                           || warn "Statut inattendu : $FINAL_STATUS"
     fi
+
+    kill "$PF_SAMPLE" "$PF_ANALYSIS" 2>/dev/null || true
 }
 
 # =============================================================================

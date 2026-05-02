@@ -8,7 +8,7 @@ WORKDIR /app
 
 # Résolution des dépendances en cache avant de copier les sources
 COPY pom.xml .
-RUN mvn dependency:go-offline -q
+RUN mvn dependency:go-offline -q && find /root/.m2 -name "*.exe" -exec chmod +x {} \; 2>/dev/null || true
 
 COPY src ./src
 RUN mvn clean package -DskipTests -q
